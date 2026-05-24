@@ -5,11 +5,11 @@ import {
   FlatList,
   TextInput,
   StyleSheet,
-  SafeAreaView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Chip } from 'react-native-paper';
 import { getAllBatches, deleteBatch, getCategories } from '../../src/database';
 import {
   BatchDisplay,
@@ -120,56 +120,51 @@ export default function SearchScreen() {
     setSelectedStatus(selectedStatus === status ? null : status);
   };
 
+  const renderChip = (label: string, isSelected: boolean, onPress: () => void, key?: string) => (
+    <TouchableOpacity
+      key={key || label}
+      style={[styles.chip, isSelected ? styles.chipSelected : styles.chipUnselected]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.chipText, isSelected ? styles.chipTextSelected : styles.chipTextUnselected]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Поиск</Text>
 
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Поиск по названию..."
-        value={searchText}
-        onChangeText={setSearchText}
-      />
+      {/* Fixed header: search + filters — outside FlatList */}
+      <View style={styles.headerSection}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Поиск по названию..."
+          value={searchText}
+          onChangeText={setSearchText}
+        />
 
-      <View style={styles.chipsRow}>
-        <Text style={styles.chipLabel}>Категория:</Text>
-        <Chip
-          selected={selectedCategory === null}
-          onPress={() => toggleCategory(null)}
-          style={styles.chip}
-        >
-          Все
-        </Chip>
-        {categories.map((cat) => (
-          <Chip
-            key={cat}
-            selected={selectedCategory === cat}
-            onPress={() => toggleCategory(cat)}
-            style={styles.chip}
-          >
-            {cat}
-          </Chip>
-        ))}
+        <View style={styles.chipsRow}>
+          <Text style={styles.chipLabel}>Категория:</Text>
+          {renderChip('Все', selectedCategory === null, () => toggleCategory(null))}
+          {categories.map((cat) => renderChip(cat, selectedCategory === cat, () => toggleCategory(cat)))}
+        </View>
+
+        <View style={styles.chipsRow}>
+          <Text style={styles.chipLabel}>Статус:</Text>
+          {STATUS_FILTERS.map((f) =>
+            renderChip(f.label, selectedStatus === f.value, () => toggleStatus(f.value))
+          )}
+        </View>
+
+        <Text style={styles.resultCount}>
+          {filtered.length} {filtered.length === 1 ? 'партия' : 'партий'}
+        </Text>
       </View>
 
-      <View style={styles.chipsRow}>
-        <Text style={styles.chipLabel}>Статус:</Text>
-        {STATUS_FILTERS.map((f) => (
-          <Chip
-            key={f.label}
-            selected={selectedStatus === f.value}
-            onPress={() => toggleStatus(f.value)}
-            style={styles.chip}
-          >
-            {f.label}
-          </Chip>
-        ))}
-      </View>
-
-      <Text style={styles.resultCount}>
-        {filtered.length} {filtered.length === 1 ? 'партия' : 'партий'}
-      </Text>
-
+      {/* Scrollable results list */}
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id.toString()}
@@ -193,6 +188,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
     color: '#1565C0',
+  },
+  headerSection: {
+    backgroundColor: '#f5f5f5',
+    paddingBottom: 4,
   },
   searchInput: {
     marginHorizontal: 12,
@@ -218,8 +217,29 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   chip: {
-    marginRight: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 6,
     marginBottom: 4,
+  },
+  chipSelected: {
+    backgroundColor: '#e3f2fd',
+  },
+  chipUnselected: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  chipTextSelected: {
+    color: '#1565C0',
+  },
+  chipTextUnselected: {
+    color: '#666',
   },
   resultCount: {
     fontSize: 13,

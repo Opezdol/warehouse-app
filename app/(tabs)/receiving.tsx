@@ -54,12 +54,17 @@ const ReceivingScreen = () => {
         console.error('Error loading items:', error);
         Alert.alert('Ошибка', 'Не удалось загрузить товары');
       }
+      // При смене категории сбрасываем выбранный товар
+      setSelectedItem(null);
+    } else {
+      setItems([]);
+      setSelectedItem(null);
     }
   }, [selectedCategory]);
 
   const handleAddBatch = () => {
     const newId = Math.max(...batches.map(b => b.id)) + 1;
-    setBatches([...batches, {id: newId, expiryDate: '', quantity: 0}]);
+    setBatches([...batches, {id: newId, expiryDate: '', quantity: 1}]);
   };
 
   const handleRemoveBatch = (id: number) => {
@@ -96,46 +101,58 @@ const ReceivingScreen = () => {
     }
 
     // Validate batches
+    const batchData: { itemId: number; locationId: number; expiryDate: string; quantity: number }[] = [];
     for (const batch of batches) {
       if (!batch.expiryDate || !batch.quantity) {
         Alert.alert('Ошибка', 'Заполните все поля партий');
         return;
       }
       
-      // Validate date format (DD.MM.YYYY)
-      const dateRegex = /^\d{2}\.\d{2}\.\d{4}$/;
-      if (!dateRegex.test(batch.expiryDate)) {
-        Alert.alert('Ошибка', 'Дата должна быть в формате ДД.ММ.ГГГГ');
+      // Конвертируем дату (2.5.25 → 2025-05-02)
+      const convertedDate = formatDate(batch.expiryDate);
+      
+      // Валидируем ISO-формат после конвертации
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(convertedDate)) {
+        Alert.alert('Ошибка', 'Дата должна быть в формате ДД.ММ.ГГГГ (например 2.5.25 или 02.05.2025)');
         return;
       }
-    }
 
-    // Prepare batch data for transaction
-    const batchData = batches.map(batch => ({
-      itemId: selectedItem.id,
-      locationId: selectedLocation.id,
-      expiryDate: formatDate(batch.expiryDate),
-      quantity: batch.quantity
-    }));
+      batchData.push({
+        itemId: selectedItem.id,
+        locationId: selectedLocation.id,
+        expiryDate: convertedDate,
+        quantity: batch.quantity,
+      });
+    }
 
     try {
       addBatchTransaction(batchData);
-      Alert.alert('Успех', 'Партии успешно добавлены', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      Alert.alert('Успех', `Добавлено ${batchData.length} партий`);
+      // Сброс: категория и локация остаются, товар и партии сбрасываются
+      resetAfterSave();
     } catch (error) {
       console.error('Error saving batches:', error);
       Alert.alert('Ошибка', 'Не удалось сохранить партии');
     }
   };
 
-  const handleCancel = () => {
-    // Reset all fields
+  const resetAfterSave = () => {
+    // После сохранения: категория и локация остаются, сбрасываем только товар и партии
+    setSelectedItem(null);
+    setBatches([{id: 1, expiryDate: '', quantity: 1}]);
+  };
+
+  const resetAll = () => {
+    // Полный сброс (кнопка Отмена)
     setSelectedLocation(locations.length > 0 ? locations[0] : null);
     setSelectedCategory(null);
     setSelectedItem(null);
     setItems([]);
-    setBatches([{id: 1, expiryDate: '', quantity: 0}]);
+    setBatches([{id: 1, expiryDate: '', quantity: 1}]);
+  };
+
+  const handleCancel = () => {
+    resetAll();
   };
 
   const renderBatchInput = (batch: {id: number; expiryDate: string; quantity: number}) => (
@@ -295,20 +312,22 @@ const ReceivingScreen = () => {
             onChangeText={setItemSearchQuery}
             style={styles.searchInput}
           />
-          {items
-            .filter(item => item.name.toLowerCase().includes(itemSearchQuery.toLowerCase()))
-            .map(item => (
-            <List.Item
-              key={item.id}
-              title={item.name}
-              onPress={() => {
-                setSelectedItem(item);
-                setItemModalVisible(false);
-                setItemSearchQuery('');
-              }}
-              style={selectedItem?.id === item.id ? styles.selectedItem : {}}
-            />
-          ))}
+          <ScrollView style={styles.itemList} keyboardShouldPersistTaps="handled">
+            {items
+              .filter(item => item.name.toLowerCase().includes(itemSearchQuery.toLowerCase()))
+              .map(item => (
+              <List.Item
+                key={item.id}
+                title={item.name}
+                onPress={() => {
+                  setSelectedItem(item);
+                  setItemModalVisible(false);
+                  setItemSearchQuery('');
+                }}
+                style={selectedItem?.id === item.id ? styles.selectedItem : {}}
+              />
+            ))}
+          </ScrollView>
         </Modal>
       </Portal>
     </SafeAreaView>
@@ -374,25 +393,29 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
   },
-  modalContainer: {
+modalContainer: {
     backgroundColor: 'white',
     margin: 20,
     padding: 16,
     borderRadius: 8,
+    maxHeight: '80%',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  selectedItem: {
-    backgroundColor: '#e3f2fd',
-  },
   searchInput: {
     backgroundColor: '#f0f0f0',
     marginVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
+  },
+  itemList: {
+    maxHeight: 400,
+  },
+  selectedItem: {
+    backgroundColor: '#e3f2fd',
   },
 });
 
